@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jogo de Luta 2D: Arena de Combate</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0f19;
+            color: white;
+            overflow: hidden;
+            touch-action: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .font-pixel {
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        #game-container {
+            position: relative;
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+        }
+
+        canvas {
+            background: linear-gradient(to bottom, #0f172a 0%, #1e1b4b 60%, #311b92 100%);
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(99, 102, 241, 0.2), 0 10px 25px -5px rgba(0, 0, 0, 0.8);
+            image-rendering: pixelated;
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border: 4px solid #334155;
+        }
+
+        .screen-shake {
+            animation: shake 0.25s cubic-bezier(.36,.07,.19,.97) both;
+        }
+
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-3px, 0, 0); }
+            20%, 80% { transform: translate3d(5px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-7px, 0, 0); }
+            40%, 60% { transform: translate3d(7px, 0, 0); }
+        }
+
+        #mobile-controls {
+            display: none;
+        }
+
+        @media (max-width: 900px) {
+            #mobile-controls {
+                display: flex;
+            }
+            .instructions-desktop {
+                display: none;
+            }
+        }
+
+        .control-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(6px);
+            border-radius: 50%;
+            width: 52px;
+            height: 52px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        .control-btn:active, .control-btn.active-touch {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0.92);
+        }
+
+        .action-btn {
+            border-radius: 10px;
+            width: 48px;
+            height: 48px;
+            font-weight: 800;
+            font-size: 9px;
+        }
+
+        .btn-p1 { border-color: rgba(59, 130, 246, 0.6); color: #60a5fa; }
+        .btn-p2 { border-color: rgba(239, 68, 68, 0.6); color: #f87171; }
+        .btn-super { border-color: #f59e0b; color: #fbbf24; background: rgba(245, 158, 11, 0.2); }
+    </style>
+</head>
+<body>
+
+    <!-- Header / HUD Control Bar -->
+    <div class="w-full flex justify-between items-center px-4 py-2 bg-slate-900/90 border-b border-slate-800 z-10 relative">
+        <div class="flex items-center gap-3">
+            <h1 class="text-lg md:text-xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-300 to-red-400 uppercase">
+                2D Fight Arena
+            </h1>
+            <span id="modeBadge" class="hidden sm:inline-block px-2 py-0.5 text-xs font-bold bg-indigo-900/80 text-indigo-300 border border-indigo-700 rounded-full">
+                VS IA
+            </span>
+        </div>
+
+        <div class="instructions-desktop text-xs text-slate-300 flex gap-6">
+            <div class="border-l-2 border-blue-500 pl-2">
+                <span class="font-bold text-blue-400">P1 (Azul):</span> 
+                <kbd class="bg-slate-800 px-1 rounded">A</kbd><kbd class="bg-slate-800 px-1 rounded">D</kbd> Mover | 
+                <kbd class="bg-slate-800 px-1 rounded">W</kbd> Pulo | 
+                <kbd class="bg-slate-800 px-1 rounded">S</kbd> Defesa | 
+                <kbd class="bg-slate-800 px-1 rounded">E</kbd> Soco | 
+                <kbd class="bg-slate-800 px-1 rounded">R</kbd> Chute | 
+                <kbd class="bg-slate-800 px-1 rounded">F</kbd> Super
+            </div>
+            <div id="p2Instructions" class="border-l-2 border-red-500 pl-2">
+                <span class="font-bold text-red-400">P2 (Vermelho):</span> 
+                <kbd class="bg-slate-800 px-1 rounded">←</kbd><kbd class="bg-slate-800 px-1 rounded">→</kbd> Mover | 
+                <kbd class="bg-slate-800 px-1 rounded">↑</kbd> Pulo | 
+                <kbd class="bg-slate-800 px-1 rounded">↓</kbd> Defesa | 
+                <kbd class="bg-slate-800 px-1 rounded">1</kbd> Soco | 
+                <kbd class="bg-slate-800 px-1 rounded">2</kbd> Chute | 
+                <kbd class="bg-slate-800 px-1 rounded">3</kbd> Super
+            </div>
+        </div>
+
+        <button onclick="showMenu()" class="px-3 py-1 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded transition">
+            Menu
+        </button>
+    </div>
+
+    <!-- Main Game Canvas Container -->
+    <div id="game-container">
+        <canvas id="gameCanvas" width="900" height="550"></canvas>
+        
+        <!-- Menu Overlay -->
+        <div id="menuOverlay" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col justify-center items-center z-30 p-4">
+            <div class="text-center max-w-lg w-full">
+                <h1 class="text-3xl md:text-5xl font-black font-pixel mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-amber-300 to-red-500 drop-shadow-md">
+                    DUELO 2D
+                </h1>
+                <p class="text-slate-400 text-sm mb-8">Escolha o modo de jogo e domine a arena!</p>
+
+                <div class="space-y-4">
+                    <button onclick="startGame('CPU')" class="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold rounded-xl shadow-lg border-b-4 border-indigo-800 transform transition active:scale-95 flex items-center justify-center gap-3 text-lg">
+                        <span>🤖 1 Jogador vs IA (Robô)</span>
+                    </button>
+
+                    <button onclick="startGame('LOCAL')" class="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-extrabold rounded-xl shadow-lg border-b-4 border-pink-800 transform transition active:scale-95 flex items-center justify-center gap-3 text-lg">
+                        <span>⚔️ 2 Jogadores (Local)</span>
+                    </button>
+                </div>
+
+                <div class="mt-8 pt-6 border-t border-slate-800 text-xs text-slate-400 text-left space-y-1">
+                    <p class="font-bold text-slate-300">Dicas de Combate:</p>
+                    <p>• <b>Super Bar:</b> Enche ao dar e receber dano. Quando cheia, aperte [F] ou [3] para um Super Ataque!</p>
+                    <p>• <b>Defesa:</b> Reduz bastante o dano dos golpes e previne knockback.</p>
+                    <p>• <b>Chute:</b> Maior alcance e dano, porém com mais tempo de recuperação.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Announcer Text Overlay (Round 1, FIGHT, KO) -->
+        <div id="announcerOverlay" class="absolute inset-0 pointer-events-none flex justify-center items-center z-20 hidden">
+            <h2 id="announcerText" class="text-5xl md:text-7xl font-black font-pixel text-amber-400 text-center tracking-wider drop-shadow-[0_10px_10px_rgba(0,0,0,0.9)] animate-bounce">
+                READY...
+            </h2>
+        </div>
+
+        <!-- Match GameOver UI Overlay -->
+        <div id="gameOverUI" class="absolute inset-0 bg-slate-950/85 backdrop-blur-sm hidden flex-col justify-center items-center z-30">
+            <h2 id="winnerText" class="text-3xl md:text-5xl font-black font-pixel text-amber-400 text-center mb-4 uppercase tracking-wider drop-shadow-lg">
+                VENCEDOR!
+            </h2>
+            <p id="matchSubText" class="text-slate-300 text-lg mb-8">Partida finalizada</p>
+            <div class="flex gap-4">
+                <button onclick="resetMatch()" class="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-full shadow-lg transform transition hover:scale-105 active:scale-95 text-lg border-b-4 border-emerald-800">
+                    REVANCHE
+                </button>
+                <button onclick="showMenu()" class="px-6 py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-full shadow-lg transform transition hover:scale-105 active:scale-95 text-lg border-b-4 border-slate-900">
+                    MENU
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Touch Controls -->
+    <div id="mobile-controls" class="w-full flex justify-between items-end px-3 pb-6 z-10">
+        <!-- P1 Touch Controls -->
+        <div class="flex flex-col gap-2">
+            <span class="text-blue-400 font-bold text-xs text-center">P1 (Azul)</span>
+            <div class="flex gap-2 justify-center">
+                <div class="control-btn btn-p1" id="btn-left-p1">◀</div>
+                <div class="control-btn btn-p1" id="btn-right-p1">▶</div>
+            </div>
+            <div class="flex gap-1.5 justify-center">
+                <div class="control-btn action-btn btn-p1" id="btn-jump-p1">PULO</div>
+                <div class="control-btn action-btn btn-p1" id="btn-def-p1">DEF</div>
+                <div class="control-btn action-btn btn-p1" id="btn-soco-p1">SOCO</div>
+                <div class="control-btn action-btn btn-p1" id="btn-chute-p1">CHUTE</div>
+                <div class="control-btn action-btn btn-super" id="btn-super-p1">SUPER</div>
+            </div>
+        </div>
+
+        <!-- P2 Touch Controls (Hidden in CPU Mode) -->
+        <div id="p2MobileControls" class="flex flex-col gap-2">
+            <span class="text-red-400 font-bold text-xs text-center">P2 (Vermelho)</span>
+            <div class="flex gap-2 justify-center">
+                <div class="control-btn btn-p2" id="btn-left-p2">◀</div>
+                <div class="control-btn btn-p2" id="btn-right-p2">▶</div>
+            </div>
+            <div class="flex gap-1.5 justify-center">
+                <div class="control-btn action-btn btn-p2" id="btn-jump-p2">PULO</div>
+                <div class="control-btn action-btn btn-p2" id="btn-def-p2">DEF</div>
+                <div class="control-btn action-btn btn-p2" id="btn-soco-p2">SOCO</div>
+                <div class="control-btn action-btn btn-p2" id="btn-chute-p2">CHUTE</div>
+                <div class="control-btn action-btn btn-super" id="btn-super-p2">SUPER</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // UI Elements
+        const menuOverlay = document.getElementById('menuOverlay');
+        const gameOverUI = document.getElementById('gameOverUI');
+        const announcerOverlay = document.getElementById('announcerOverlay');
+        const announcerText = document.getElementById('announcerText');
+        const winnerText = document.getElementById('winnerText');
+        const matchSubText = document.getElementById('matchSubText');
+        const modeBadge = document.getElementById('modeBadge');
+        const p2Instructions = document.getElementById('p2Instructions');
+        const p2MobileControls = document.getElementById('p2MobileControls');
+
+        // Constants
+        const GAME_WIDTH = 900;
+        const GAME_HEIGHT = 550;
+        const FLOOR_Y = 430;
+
+        // Auto Resize Canvas
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            const targetRatio = GAME_WIDTH / GAME_HEIGHT;
+            const containerRatio = container.clientWidth / container.clientHeight;
+
+            let finalWidth, finalHeight;
+            if (containerRatio > targetRatio) {
+                finalHeight = container.clientHeight - 10;
+                finalWidth = finalHeight * targetRatio;
+            } else {
+                finalWidth = container.clientWidth - 10;
+                finalHeight = finalWidth / targetRatio;
+            }
+
+            canvas.style.width = `${finalWidth}px`;
+            canvas.style.height = `${finalHeight}px`;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Audio System (Synthesized Web Audio API)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'punch') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(180, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start();
+                osc.stop(now + 0.1);
+            } else if (type === 'kick') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(120, now);
+                osc.frequency.exponentialRampToValueAtTime(25, now + 0.2);
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.start();
+                osc.stop(now + 0.2);
+            } else if (type === 'super') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.linearRampToValueAtTime(800, now + 0.2);
+                osc.frequency.exponentialRampToValueAtTime(100, now + 0.5);
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.start();
+                osc.stop(now + 0.5);
+            } else if (type === 'block') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(500, now);
+                osc.frequency.exponentialRampToValueAtTime(200, now + 0.08);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                osc.start();
+                osc.stop(now + 0.08);
+            } else if (type === 'bell') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+                osc.start();
+                osc.stop(now + 0.8);
+            }
+        }
+
+        function triggerShake() {
+            const container = document.getElementById('game-container');
+            container.classList.remove('screen-shake');
+            void container.offsetWidth;
+            container.classList.add('screen-shake');
+        }
+
+        // Particle System
+        let particles = [];
+        class Particle {
+            constructor(x, y, color, size = 4, speedMultiplier = 1) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 12 * speedMultiplier;
+                this.vy = (Math.random() - 0.5) * 12 * speedMultiplier;
+                this.life = 1.0;
+                this.decay = Math.random() * 0.04 + 0.02;
+                this.color = color;
+                this.size = Math.random() * size + 2;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= this.decay;
+            }
+            draw(ctx) {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.size, this.size);
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        function createParticles(x, y, color, count = 15, size = 5, speed = 1) {
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle(x, y, color, size, speed));
+            }
+        }
+
+        // Game State Variables
+        let gameMode = 'CPU'; // 'CPU' or 'LOCAL'
+        let gameState = 'MENU'; // 'MENU', 'ROUND_INTRO', 'PLAYING', 'ROUND_OVER', 'MATCH_OVER'
+        let roundTimer = 99;
+        let timerInterval = null;
+        
+        let p1Rounds = 0;
+        let p2Rounds = 0;
+
+        // Player Class
+        class Player {
+            constructor(x, isLeftPlayer) {
+                this.isLeftPlayer = isLeftPlayer;
+                this.resetPosition(x);
+
+                this.width = 44;
+                this.height = 100;
+                this.speed = 320;
+
+                this.gravity = 1900;
+                this.jumpForce = -780;
+                this.isGrounded = true;
+
+                this.color = isLeftPlayer ? '#3b82f6' : '#ef4444'; // Blue vs Red
+                
+                // Combat Stats
+                this.hp = 100;
+                this.superMeter = 0; // 0 to 100
+
+                // Action Timers
+                this.isAttacking = false;
+                this.attackType = null; // 'PUNCH', 'KICK', 'SUPER'
+                this.attackTimer = 0;
+                this.attackDuration = 0.2;
+                this.hitRegistered = false;
+
+                this.isShielding = false;
+                this.shieldTimer = 0;
+                this.shieldCooldown = 0;
+
+                this.hitstunTimer = 0;
+
+                this.movingLeft = false;
+                this.movingRight = false;
+                this.walkAnim = 0;
+            }
+
+            resetPosition(x) {
+                this.x = x;
+                this.y = FLOOR_Y - 100;
+                this.vy = 0;
+                this.hp = 100;
+                this.isAttacking = false;
+                this.isShielding = false;
+                this.shieldTimer = 0;
+                this.shieldCooldown = 0;
+                this.hitstunTimer = 0;
+                this.movingLeft = false;
+                this.movingRight = false;
+            }
+
+            update(dt, opponent) {
+                // Hitstun logic
+                if (this.hitstunTimer > 0) {
+                    this.hitstunTimer -= dt;
+                    this.isAttacking = false;
+                }
+
+                // Shield timers
+                if (this.shieldTimer > 0) {
+                    this.shieldTimer -= dt;
+                    if (this.shieldTimer <= 0) {
+                        this.isShielding = false;
+                        this.shieldCooldown = 2.5;
+                    }
+                }
+                if (this.shieldCooldown > 0) {
+                    this.shieldCooldown -= dt;
+                }
+
+                // Movement (disabled during hitstun or shielding)
+                if (this.hitstunTimer <= 0 && !this.isShielding) {
+                    if (this.movingLeft) {
+                        this.x -= this.speed * dt;
+                        if (this.isGrounded) this.walkAnim += 16 * dt;
+                    }
+                    if (this.movingRight) {
+                        this.x += this.speed * dt;
+                        if (this.isGrounded) this.walkAnim += 16 * dt;
+                    }
+                    if (!this.movingLeft && !this.movingRight) {
+                        this.walkAnim = 0;
+                    }
+                }
+
+                // Physics & Gravity
+                this.vy += this.gravity * dt;
+                this.y += this.vy * dt;
+
+                if (this.y >= FLOOR_Y - this.height) {
+                    this.y = FLOOR_Y - this.height;
+                    this.vy = 0;
+                    this.isGrounded = true;
+                } else {
+                    this.isGrounded = false;
+                }
+
+                // Arena boundaries
+                this.x = Math.max(20, Math.min(GAME_WIDTH - this.width - 20, this.x));
+
+                // Player physical body overlap prevention
+                if (this.x < opponent.x + opponent.width && this.x + this.width > opponent.x) {
+                    if (this.x < opponent.x && this.movingRight) this.x = opponent.x - this.width;
+                    else if (this.x > opponent.x && this.movingLeft) this.x = opponent.x + opponent.width;
+                }
+
+                // Attack logic
+                if (this.isAttacking) {
+                    this.attackTimer += dt;
+
+                    if (!this.hitRegistered && this.attackTimer < this.attackDuration * 0.75) {
+                        this.checkAttackCollision(opponent);
+                    }
+
+                    if (this.attackTimer >= this.attackDuration) {
+                        this.isAttacking = false;
+                        this.attackTimer = 0;
+                        this.hitRegistered = false;
+                    }
+                }
+            }
+
+            checkAttackCollision(target) {
+                const facingDir = this.isLeftPlayer ? 1 : -1;
+                let hitBox = { x: 0, y: 0, w: 0, h: 0, damage: 0, sound: '', knockback: 0, superGain: 0 };
+
+                if (this.attackType === 'PUNCH') {
+                    hitBox = {
+                        x: facingDir === 1 ? this.x + this.width : this.x - 45,
+                        y: this.y + 20,
+                        w: 45,
+                        h: 25,
+                        damage: 8,
+                        sound: 'punch',
+                        knockback: 15,
+                        superGain: 12
+                    };
+                } else if (this.attackType === 'KICK') {
+                    hitBox = {
+                        x: facingDir === 1 ? this.x + this.width : this.x - 65,
+                        y: this.y + 40,
+                        w: 65,
+                        h: 30,
+                        damage: 16,
+                        sound: 'kick',
+                        knockback: 35,
+                        superGain: 18
+                    };
+                } else if (this.attackType === 'SUPER') {
+                    hitBox = {
+                        x: facingDir === 1 ? this.x + this.width : this.x - 180,
+                        y: this.y + 10,
+                        w: 180,
+                        h: 60,
+                        damage: 32,
+                        sound: 'super',
+                        knockback: 70,
+                        superGain: 0
+                    };
+                }
+
+                const targetBox = { x: target.x, y: target.y, w: target.width, h: target.height };
+
+                // AABB Collision check
+                if (hitBox.x < targetBox.x + targetBox.w &&
+                    hitBox.x + hitBox.w > targetBox.x &&
+                    hitBox.y < targetBox.y + targetBox.h &&
+                    hitBox.y + hitBox.h > targetBox.y) {
+                    
+                    this.hitRegistered = true;
+                    const impactX = hitBox.x + (hitBox.w / 2);
+                    const impactY = hitBox.y + (hitBox.h / 2);
+
+                    if (target.isShielding) {
+                        playSound('block');
+                        createParticles(impactX, impactY, '#38bdf8', 12, 4);
+                        target.hp = Math.max(0, target.hp - Math.floor(hitBox.damage * 0.2));
+                    } else {
+                        playSound(hitBox.sound);
+                        triggerShake();
+                        
+                        target.hp = Math.max(0, target.hp - hitBox.damage);
+                        target.hitstunTimer = 0.25; // Stun duration
+                        target.x += facingDir * hitBox.knockback; // Knockback
+
+                        // Gain Super Meter on hitting/getting hit
+                        this.superMeter = Math.min(100, this.superMeter + hitBox.superGain);
+                        target.superMeter = Math.min(100, target.superMeter + 10);
+
+                        const pColor = this.attackType === 'SUPER' ? '#f59e0b' : (this.isLeftPlayer ? '#60a5fa' : '#f87171');
+                        createParticles(impactX, impactY, pColor, this.attackType === 'SUPER' ? 35 : 18, 6, 1.5);
+                    }
+
+                    checkRoundEnd();
+                }
+            }
+
+            draw(ctx) {
+                const facingDir = this.isLeftPlayer ? 1 : -1;
+
+                ctx.save();
+                ctx.translate(this.x + this.width / 2, this.y);
+
+                // Shield Visual Aura
+                if (this.isShielding) {
+                    ctx.beginPath();
+                    ctx.arc(0, 50, 58, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+                    ctx.fill();
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+
+                // Super Attack Charging Effect
+                if (this.isAttacking && this.attackType === 'SUPER') {
+                    ctx.beginPath();
+                    ctx.arc(facingDir * 60, 40, 40, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(245, 158, 11, 0.4)';
+                    ctx.fill();
+                    ctx.strokeStyle = '#fbbf24';
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+                }
+
+                // Body rendering (Hitstun flashing)
+                ctx.strokeStyle = (this.hitstunTimer > 0) ? '#ffffff' : this.color;
+                ctx.lineWidth = 12;
+                ctx.lineCap = 'round';
+
+                const neckY = 28;
+                const pelvisY = 65;
+
+                // Torso
+                ctx.beginPath();
+                ctx.moveTo(0, neckY);
+                ctx.lineTo(0, pelvisY);
+                ctx.stroke();
+
+                // Legs
+                let legSwing = 0;
+                if (this.isGrounded) {
+                    legSwing = Math.sin(this.walkAnim) * 16;
+                    ctx.beginPath();
+                    ctx.moveTo(0, pelvisY);
+                    ctx.lineTo(-legSwing * facingDir, pelvisY + 32);
+                    ctx.stroke();
+
+                    // Kick Animation (Leg extension)
+                    if (this.isAttacking && this.attackType === 'KICK') {
+                        ctx.beginPath();
+                        ctx.moveTo(0, pelvisY);
+                        ctx.lineTo(facingDir * 45, pelvisY + 10);
+                        ctx.stroke();
+                    } else {
+                        ctx.beginPath();
+                        ctx.moveTo(0, pelvisY);
+                        ctx.lineTo(legSwing * facingDir, pelvisY + 32);
+                        ctx.stroke();
+                    }
+                } else {
+                    // Jump Pose
+                    ctx.beginPath();
+                    ctx.moveTo(0, pelvisY);
+                    ctx.lineTo(-14 * facingDir, pelvisY + 22);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, pelvisY);
+                    ctx.lineTo(16 * facingDir, pelvisY + 18);
+                    ctx.stroke();
+                }
+
+                // Arms & Punch
+                ctx.strokeStyle = this.isLeftPlayer ? '#2563eb' : '#dc2626';
+                if (this.isAttacking && this.attackType === 'PUNCH') {
+                    ctx.beginPath();
+                    ctx.moveTo(0, neckY + 4);
+                    ctx.lineTo(facingDir * 42, neckY + 4);
+                    ctx.stroke();
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    ctx.arc(facingDir * 46, neckY + 4, 7, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.beginPath();
+                    ctx.moveTo(0, neckY + 4);
+                    ctx.lineTo(legSwing * facingDir, neckY + 28);
+                    ctx.stroke();
+                }
+
+                // Head
+                ctx.fillStyle = '#f8fafc';
+                ctx.beginPath();
+                ctx.arc(0, 14, 14, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Eyes (facing direction)
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(facingDir * 5, 11, 4, 4);
+
+                ctx.restore();
+            }
+
+            jump() {
+                if (this.isGrounded && !this.isShielding && this.hitstunTimer <= 0 && gameState === 'PLAYING') {
+                    this.vy = this.jumpForce;
+                    this.isGrounded = false;
+                }
+            }
+
+            attack(type) {
+                if (!this.isAttacking && !this.isShielding && this.hitstunTimer <= 0 && gameState === 'PLAYING') {
+                    if (type === 'SUPER') {
+                        if (this.superMeter < 100) return; // Requires 100% Super
+                        this.superMeter = 0;
+                        this.attackDuration = 0.4;
+                    } else if (type === 'KICK') {
+                        this.attackDuration = 0.3;
+                    } else {
+                        this.attackDuration = 0.2;
+                    }
+
+                    this.isAttacking = true;
+                    this.attackType = type;
+                    this.attackTimer = 0;
+                    this.hitRegistered = false;
+                }
+            }
+
+            activateShield() {
+                if (!this.isShielding && this.shieldCooldown <= 0 && this.hitstunTimer <= 0 && gameState === 'PLAYING') {
+                    this.isShielding = true;
+                    this.shieldTimer = 2.5;
+                }
+            }
+        }
+
+        // Initialize Players
+        const p1 = new Player(180, true);
+        const p2 = new Player(680, false);
+
+        // CPU Bot AI Logic
+        function updateCPU(dt) {
+            if (gameMode !== 'CPU' || gameState !== 'PLAYING') return;
+
+            const dist = p1.x - p2.x; // negative if P1 is to the left
+            const absDist = Math.abs(dist);
+
+            // Turn towards P1
+            if (dist < 0) {
+                p2.movingLeft = true;
+                p2.movingRight = false;
+            } else {
+                p2.movingLeft = false;
+                p2.movingRight = true;
+            }
+
+            // Super Attack priority when available
+            if (p2.superMeter >= 100 && absDist < 180) {
+                p2.attack('SUPER');
+                return;
+            }
+
+            // Attack decisions when in range
+            if (absDist < 60) {
+                p2.movingLeft = false;
+                p2.movingRight = false;
+
+                if (p1.isAttacking && Math.random() < 0.4) {
+                    p2.activateShield();
+                } else if (Math.random() < 0.5) {
+                    p2.attack('PUNCH');
+                } else {
+                    p2.attack('KICK');
+                }
+            } else if (absDist < 85 && Math.random() < 0.05) {
+                p2.attack('KICK');
+            } else if (Math.random() < 0.02) {
+                p2.jump();
+            }
+        }
+
+        // Game Flow & Rounds Management
+        function startGame(mode) {
+            gameMode = mode;
+            p1Rounds = 0;
+            p2Rounds = 0;
+
+            modeBadge.innerText = mode === 'CPU' ? '1P VS IA' : '1v1 LOCAL';
+            p2Instructions.style.display = mode === 'CPU' ? 'none' : 'block';
+            p2MobileControls.style.display = mode === 'CPU' ? 'none' : 'flex';
+
+            menuOverlay.classList.add('hidden');
+            gameOverUI.classList.add('hidden');
+
+            startNextRound();
+        }
+
+        function showMenu() {
+            gameState = 'MENU';
+            clearInterval(timerInterval);
+            menuOverlay.classList.remove('hidden');
+            gameOverUI.classList.add('hidden');
+            announcerOverlay.classList.add('hidden');
+        }
+
+        function startNextRound() {
+            p1.resetPosition(180);
+            p2.resetPosition(680);
+            roundTimer = 99;
+
+            gameState = 'ROUND_INTRO';
+            announcerText.innerText = `ROUND ${p1Rounds + p2Rounds + 1}`;
+            announcerOverlay.classList.remove('hidden');
+
+            playSound('bell');
+
+            setTimeout(() => {
+                announcerText.innerText = 'FIGHT!';
+                setTimeout(() => {
+                    announcerOverlay.classList.add('hidden');
+                    gameState = 'PLAYING';
+                    startTimer();
+                }, 800);
+            }, 1200);
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (gameState === 'PLAYING') {
+                    roundTimer--;
+                    if (roundTimer <= 0) {
+                        roundTimer = 0;
+                        checkRoundEnd(true);
+                    }
+                }
+            }, 1000);
+        }
+
+        function checkRoundEnd(timeOut = false) {
+            if (gameState !== 'PLAYING') return;
+
+            let roundWinner = null;
+
+            if (p1.hp <= 0 || p2.hp <= 0 || timeOut) {
+                gameState = 'ROUND_OVER';
+                clearInterval(timerInterval);
+
+                if (p1.hp > p2.hp) roundWinner = 'P1';
+                else if (p2.hp > p1.hp) roundWinner = 'P2';
+
+                announcerOverlay.classList.remove('hidden');
+                
+                if (timeOut) {
+                    announcerText.innerText = 'TIME UP!';
+                } else {
+                    announcerText.innerText = 'K.O.!';
+                }
+
+                setTimeout(() => {
+                    if (roundWinner === 'P1') p1Rounds++;
+                    else if (roundWinner === 'P2') p2Rounds++;
+
+                    if (p1Rounds >= 2 || p2Rounds >= 2) {
+                        endMatch();
+                    } else {
+                        startNextRound();
+                    }
+                }, 1800);
+            }
+        }
+
+        function endMatch() {
+            gameState = 'MATCH_OVER';
+            let winnerName = p1Rounds >= 2 ? 'P1 (AZUL) VENCEU!' : (gameMode === 'CPU' ? 'IA (ROBÔ) VENCEU!' : 'P2 (VERMELHO) VENCEU!');
+            let winnerColor = p1Rounds >= 2 ? 'text-blue-400' : 'text-red-400';
+
+            winnerText.innerText = winnerName;
+            winnerText.className = `text-3xl md:text-5xl font-black font-pixel text-center mb-4 uppercase tracking-wider drop-shadow-lg ${winnerColor}`;
+            matchSubText.innerText = `Placar Final: ${p1Rounds} x ${p2Rounds}`;
+
+            gameOverUI.classList.remove('hidden');
+            gameOverUI.classList.add('flex');
+        }
+
+        function resetMatch() {
+            startGame(gameMode);
+        }
+
+        // Draw HUD inside Canvas
+        function drawHUD() {
+            // Player 1 HP Bar
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(30, 25, 300, 22);
+            ctx.fillStyle = p1.hp > 50 ? '#22c55e' : (p1.hp > 20 ? '#eab308' : '#ef4444');
+            ctx.fillRect(30, 25, (300 * p1.hp) / 100, 22);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(30, 25, 300, 22);
+
+            // Player 1 Super Meter
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(30, 52, 300, 8);
+            ctx.fillStyle = p1.superMeter >= 100 ? '#f59e0b' : '#3b82f6';
+            ctx.fillRect(30, 52, (300 * p1.superMeter) / 100, 8);
+
+            // Player 2 HP Bar
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(GAME_WIDTH - 330, 25, 300, 22);
+            ctx.fillStyle = p2.hp > 50 ? '#22c55e' : (p2.hp > 20 ? '#eab308' : '#ef4444');
+            ctx.fillRect(GAME_WIDTH - 330 + (300 * (100 - p2.hp) / 100), 25, (300 * p2.hp) / 100, 22);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(GAME_WIDTH - 330, 25, 300, 22);
+
+            // Player 2 Super Meter
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(GAME_WIDTH - 330, 52, 300, 8);
+            ctx.fillStyle = p2.superMeter >= 100 ? '#f59e0b' : '#ef4444';
+            ctx.fillRect(GAME_WIDTH - 330 + (300 * (100 - p2.superMeter) / 100), 52, (300 * p2.superMeter) / 100, 8);
+
+            // Round Score Badges
+            for (let i = 0; i < 2; i++) {
+                ctx.fillStyle = i < p1Rounds ? '#fbbf24' : '#475569';
+                ctx.beginPath();
+                ctx.arc(320 + i * 18, 72, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = i < p2Rounds ? '#fbbf24' : '#475569';
+                ctx.beginPath();
+                ctx.arc(GAME_WIDTH - 320 - i * 18, 72, 6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Timer Display Box
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(GAME_WIDTH / 2 - 35, 15, 70, 45);
+            ctx.strokeStyle = '#334155';
+            ctx.strokeRect(GAME_WIDTH / 2 - 35, 15, 70, 45);
+
+            ctx.fillStyle = roundTimer < 15 ? '#ef4444' : '#ffffff';
+            ctx.font = '900 24px "Press Start 2P"';
+            ctx.textAlign = 'center';
+            ctx.fillText(roundTimer.toString().padStart(2, '0'), GAME_WIDTH / 2, 48);
+
+            // Names
+            ctx.font = 'bold 12px Inter';
+            ctx.fillStyle = '#60a5fa';
+            ctx.textAlign = 'left';
+            ctx.fillText('P1 (AZUL)', 30, 18);
+
+            ctx.fillStyle = '#f87171';
+            ctx.textAlign = 'right';
+            ctx.fillText(gameMode === 'CPU' ? 'IA (ROBÔ)' : 'P2 (VERMELHO)', GAME_WIDTH - 30, 18);
+        }
+
+        function drawEnvironment() {
+            // Floor Arena
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, FLOOR_Y, GAME_WIDTH, GAME_HEIGHT - FLOOR_Y);
+            ctx.fillStyle = '#6366f1';
+            ctx.fillRect(0, FLOOR_Y, GAME_WIDTH, 6);
+        }
+
+        // Main Game Loop
+        let lastTime = 0;
+        function gameLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+            lastTime = timestamp;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawEnvironment();
+
+            if (gameState === 'PLAYING') {
+                updateCPU(dt);
+                p1.update(dt, p2);
+                p2.update(dt, p1);
+            }
+
+            p1.draw(ctx);
+            p2.draw(ctx);
+
+            // Particles update & draw
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.update();
+                p.draw(ctx);
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            drawHUD();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Keyboard Event Listeners
+        window.addEventListener('keydown', (e) => {
+            if (gameState !== 'PLAYING') return;
+
+            // P1 Controls
+            if (e.code === 'KeyA') p1.movingLeft = true;
+            if (e.code === 'KeyD') p1.movingRight = true;
+            if (e.code === 'KeyW') p1.jump();
+            if (e.code === 'KeyS') p1.activateShield();
+            if (e.code === 'KeyE') p1.attack('PUNCH');
+            if (e.code === 'KeyR') p1.attack('KICK');
+            if (e.code === 'KeyF') p1.attack('SUPER');
+
+            // P2 Controls (Local 2P Mode Only)
+            if (gameMode === 'LOCAL') {
+                if (e.code === 'ArrowLeft') p2.movingLeft = true;
+                if (e.code === 'ArrowRight') p2.movingRight = true;
+                if (e.code === 'ArrowUp') p2.jump();
+                if (e.code === 'ArrowDown') p2.activateShield();
+                if (e.code === 'Digit1' || e.code === 'Numpad1') p2.attack('PUNCH');
+                if (e.code === 'Digit2' || e.code === 'Numpad2') p2.attack('KICK');
+                if (e.code === 'Digit3' || e.code === 'Numpad3') p2.attack('SUPER');
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyA') p1.movingLeft = false;
+            if (e.code === 'KeyD') p1.movingRight = false;
+
+            if (gameMode === 'LOCAL') {
+                if (e.code === 'ArrowLeft') p2.movingLeft = false;
+                if (e.code === 'ArrowRight') p2.movingRight = false;
+            }
+        });
+
+        // Setup Mobile Touch Controls
+        function bindTouch(id, onStart, onEnd) {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+
+            const start = (e) => {
+                e.preventDefault();
+                btn.classList.add('active-touch');
+                onStart();
+            };
+            const end = (e) => {
+                e.preventDefault();
+                btn.classList.remove('active-touch');
+                if (onEnd) onEnd();
+            };
+
+            btn.addEventListener('touchstart', start, { passive: false });
+            btn.addEventListener('touchend', end, { passive: false });
+            btn.addEventListener('touchcancel', end, { passive: false });
+            btn.addEventListener('mousedown', start);
+            window.addEventListener('mouseup', end);
+        }
+
+        // Bind Touch Buttons P1
+        bindTouch('btn-left-p1', () => p1.movingLeft = true, () => p1.movingLeft = false);
+        bindTouch('btn-right-p1', () => p1.movingRight = true, () => p1.movingRight = false);
+        bindTouch('btn-jump-p1', () => p1.jump());
+        bindTouch('btn-def-p1', () => p1.activateShield());
+        bindTouch('btn-soco-p1', () => p1.attack('PUNCH'));
+        bindTouch('btn-chute-p1', () => p1.attack('KICK'));
+        bindTouch('btn-super-p1', () => p1.attack('SUPER'));
+
+        // Bind Touch Buttons P2
+        bindTouch('btn-left-p2', () => p2.movingLeft = true, () => p2.movingLeft = false);
+        bindTouch('btn-right-p2', () => p2.movingRight = true, () => p2.movingRight = false);
+        bindTouch('btn-jump-p2', () => p2.jump());
+        bindTouch('btn-def-p2', () => p2.activateShield());
+        bindTouch('btn-soco-p2', () => p2.attack('PUNCH'));
+        bindTouch('btn-chute-p2', () => p2.attack('KICK'));
+        bindTouch('btn-super-p2', () => p2.attack('SUPER'));
+
+        // Start render loop
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
